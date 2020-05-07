@@ -1,0 +1,25 @@
+{
+    "name": "esaavedra/anki",
+    "authors": [
+        {
+            "name": "Edgar Saavedra Vallejo",
+            "email": "esaavedra@commonsense.org"
+        }
+    ],
+    "scripts": {
+        "serve": [
+            "php -S localhost:8908"
+        ]
+    },
+    "require": {
+        "mmucklo/krumo": "^0.6.0",
+        "eaglewu/phpexcel": "^1.8",
+        "guzzlehttp/guzzle": "^6.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "AnkiED\\":"src/"
+        },
+        "files": ["src/functions_include.php"]
+    }
+}
