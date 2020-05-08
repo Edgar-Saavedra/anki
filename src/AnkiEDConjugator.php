@@ -18,6 +18,7 @@ class AnkiEDConjugator {
     $str = trim($str);
     $str = strtolower($str);
     $str = strtr( $str, $unwanted_array );
+    $str = preg_replace('/\s+/', '', $str);
     return $str;
   }
   static function prepForVerbixGerman($str) {
@@ -187,8 +188,8 @@ class AnkiEDConjugator {
                 if($tense_block_header) {
                   $tense_block_header_slug = AnkiEDConjugator::getSlug($lang, $tense_block_header);
                   $conjugations[$header_slug]['tenses'][$tense_block_header_slug] = array(
-                    'tense' => $tense_block_header,
-                    'tense_category' => $header,
+                    'tense' => trim($tense_block_header),
+                    'tense_category' => trim($header),
                     'conjugations' => array()
                   );
                   $conj_items = $tense_sub_block_block->find('.verbtense');
@@ -203,10 +204,10 @@ class AnkiEDConjugator {
                       $pronoun = $pronoun[0] ? $pronoun[0]->innertext() : null;
                       $conjugation = $conjugation[0] ? $conjugation[0]->innertext() : null;
                       $conjugation_item = array(
-                        'tense_category' => $header,
-                        'tense' => $tense_block_header,
-                        'pronoun' => $pronoun,
-                        'conjugation' => $conjugation
+                        'tense_category' => trim($header),
+                        'tense' => trim($tense_block_header),
+                        'pronoun' => trim($pronoun),
+                        'conjugation' => trim($conjugation)
                       );
                       $conjugations[$header_slug]['tenses'][$tense_block_header_slug]['conjugations'][$pronoun ? AnkiEDConjugator::getSlug($lang, $pronoun) : $key] = $conjugation_item;
                     }
@@ -232,10 +233,10 @@ class AnkiEDConjugator {
                 $pronoun = $pronoun[0] ? $pronoun[0]->innertext() : null;
                 $conjugation = $conjugation[0] ? $conjugation[0]->innertext() : null;
                 $conjugation_item = array(
-                  'tense_category' => $header,
-                  'tense' => $tense_block_header,
-                  'pronoun' => $pronoun,
-                  'conjugation' => $conjugation
+                  'tense_category' => trim($header),
+                  'tense' => trim($tense_block_header),
+                  'pronoun' => trim($pronoun),
+                  'conjugation' => trim($conjugation)
                 );
                 $conjugations[$header_slug]['tenses'][$header_slug]['conjugations'][$pronoun ? AnkiEDConjugator::getSlug($lang, $pronoun) : $key] = $conjugation_item;
               }
@@ -245,7 +246,7 @@ class AnkiEDConjugator {
             foreach ($dom->find('h3') as $node){
               $node->outertext = '';
             }
-            $conjugations[$header_slug]['content'] = $dom->innertext;
+            $conjugations[$header_slug]['content'] = trim($dom->innertext);
           }
         }
       }
@@ -295,12 +296,14 @@ class AnkiEDConjugator {
       /** 
        * @see JonnyW\PhantomJs\Http\Request
        **/
-      $request = $client->getMessageFactory()->createRequest("https://www.verbix.com/webverbix/German/$verb_encode.html", 'GET');
+      $response = $client->getMessageFactory()->createResponse();
+      $request = $client->getMessageFactory()->createRequest();
+      $request->setMethod('GET');
+      $request->setUrl("https://www.verbix.com/webverbix/German/$verb_encode.html");
+      $request->setTimeout(5000);
       /** 
        * @see JonnyW\PhantomJs\Http\Response 
        **/
-      $response = $client->getMessageFactory()->createResponse();
-
       $promise = new Promise(function () use (&$promise, $client, $request, $response) {
         $promise->resolve($client->send($request, $response));
       });
@@ -327,31 +330,40 @@ class AnkiEDConjugator {
   static function getFrenchConjugationVerbix($client = null, $verb = null, $translation = null) {
     if($verb) {
       $verb_encode = AnkiEDConjugator::prepForVerbixFrench($verb);
-      /** 
-       * @see JonnyW\PhantomJs\Http\Request
-       **/
-      $request = $client->getMessageFactory()->createRequest("https://www.verbix.com/webverbix/go.php?D1=3&T1=$verb_encode", 'GET');
-      /** 
-       * @see JonnyW\PhantomJs\Http\Response 
-       **/
+      $verb_encode = urlencode($verb_encode);
       $response = $client->getMessageFactory()->createResponse();
-
+      $request = $client->getMessageFactory()->createRequest();
+      $request->setMethod('GET');
+      $request->setUrl("https://www.verbix.com/webverbix/go.php?D1=3&T1=$verb_encode");
       $promise = new Promise(function () use (&$promise, $client, $request, $response) {
         $promise->resolve($client->send($request, $response));
       });
       return $promise->then(function($response) use ( $verb, $translation ) {
+        krumo($verb. '---- status ---- '.$response->getStatus());
         if($response->getStatus() === 200) {
           $html = $response->getContent();
           return AnkiEDConjugator::processVerbixConjugationPage("french", $html, $verb, $translation);
         }
-        return false;
+        return array(
+          'verb' => $verb,
+          'translation' => $translation,
+          'conjugations_found' => false,
+          'language' => "french",
+          "not_in_verbix" => true
+        );
       });
       // return $response->then(function($response) use ( $verb, $translation ) {
       //   return AnkiEDConjugator::processBabConjugationPage('german', $response->getBody()->getContents(), $verb, $translation);
       // });
     }
-    $promise = new Promise(function () use (&$promise) {
-      $promise->resolve(false);
+    $promise = new Promise(function () use (&$promise, $verb, $translation) {
+      $promise->resolve(array(
+        'verb' => $verb,
+        'translation' => $translation,
+        'conjugations_found' => false,
+        'language' => "french",
+        "not_in_verbix" => true
+      ));
     });
     return $promise->then(function($value) {
       return $value;

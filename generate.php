@@ -40,12 +40,17 @@ function getVerbixGermanConjPromises($verbe_data) {
 function getVerbixFrenchConjPromises($verbe_data) {
   $pomises = [];
   $client = JonnyW\PhantomJs\Client::getInstance();
+  $client->isLazy();
+  $client->getEngine()->addOption('--load-images=false');
+  $client->getEngine()->addOption('--ignore-ssl-errors=true');
   foreach($verbe_data as $key => $value) {
     $verbe = $value['verbe']['value'];
     $translation = $value['translation']['value'];
-    $pomises[] = AnkiEDConjugator::getFrenchConjugationVerbix($client, $verbe, $translation);
+    if($verbe)
+      $pomises[] = AnkiEDConjugator::getFrenchConjugationVerbix($client, $verbe, $translation);
   }
   all($pomises)->then(function($data) {
+    krumo('all done! writting the french conjugations to file!');
     $fp = fopen('french-conjugations-verbix.json', 'w');
     fwrite($fp, json_encode($data));
     fclose($fp);
