@@ -9,13 +9,23 @@
     "scripts": {
         "serve": [
             "php -S localhost:8908"
+        ],
+        "post-install-cmd": [
+            "PhantomInstaller\\Installer::installPhantomJS"
+        ],
+        "post-update-cmd": [
+            "PhantomInstaller\\Installer::installPhantomJS"
         ]
+    },
+    "config": {
+        "bin-dir": "bin"
     },
     "require": {
         "mmucklo/krumo": "^0.6.0",
         "eaglewu/phpexcel": "^1.8",
         "guzzlehttp/guzzle": "^6.5",
-        "sunra/php-simple-html-dom-parser": "^1.5"
+        "sunra/php-simple-html-dom-parser": "^1.5",
+        "jonnyw/php-phantomjs": "4.*"
     },
     "autoload": {
         "psr-4": {

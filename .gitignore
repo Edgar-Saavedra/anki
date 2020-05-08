@@ -1,3 +1,4 @@
 *.xlsx
 vendor
 node_modules
+bin

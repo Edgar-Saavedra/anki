@@ -2,6 +2,27 @@
 const GERMAN_DECK = 'german-conjugations';
 const FRENCH_DECK = 'french-conjugations';
 
+var myHeaders = new Headers();
+myHeaders.set('Content-Type','application/json')
+var myInit = { method: 'GET',
+              headers: myHeaders,
+              mode: 'cors',
+              cache: 'default' };
+
+fetch('/french-conjugations-verbix.json',myInit)
+.then(function(response) {
+  var contentType = response.headers.get("content-type");
+  if(contentType && contentType.indexOf("application/json") !== -1) {
+    return response.json();
+  } else {
+    console.log("Oops, nous n'avons pas du JSON!");
+    return false;
+  }
+})
+.then(function(json) {
+    if(json)
+        console.log(json);
+})
 
 function ankiInvoke(action, version, params={}) {
     return new Promise((resolve, reject) => {
@@ -33,48 +54,56 @@ function ankiInvoke(action, version, params={}) {
     });
 }
 
-ankiInvoke('updateModelStyling', 6, {
-    model: {
-        "name": "Basic",
-        "css": `
-            .card {
-                font-family: arial;
-                font-size: 20px;
-                text-align: left;
-                color: black;
-                background-color: white;
-            }
-            .card img {
-                max-width: 100%;
-            }
-            .card iframe {
-                max-width: 100%;
-            }
-            .card table {
-                width: 100%;
-            }
-            .card table, th, td {
-                border: 1px solid black;
-            }
-            .card table th {
-                text-align: left;
-                background: grey;
-                color: white;
-                padding: 5px;
-            }
-        `, 
-    }
-}).then((result) => {
-    console.log('finished styling', result);
-    ankiInvoke('createDeck', 6, {deck: GERMAN_DECK})
-    .then((result) => {
-        createGermanConjugatedNotes();
+const addAnkiCards = (type, data) => {
+    ankiInvoke('updateModelStyling', 6, {
+        model: {
+            "name": "Basic",
+            "css": `
+                .card {
+                    font-family: arial;
+                    font-size: 20px;
+                    text-align: left;
+                    color: black;
+                    background-color: white;
+                }
+                .card img {
+                    max-width: 100%;
+                }
+                .card iframe {
+                    max-width: 100%;
+                }
+                .card table {
+                    width: 100%;
+                }
+                .card table, th, td {
+                    border: 1px solid black;
+                }
+                .card table th {
+                    text-align: left;
+                    background: grey;
+                    color: white;
+                    padding: 5px;
+                }
+            `, 
+        }
+    }).then((result) => {
+        switch(type) {
+            case 'babGerman':
+                ankiInvoke('createDeck', 6, {deck: GERMAN_DECK})
+                .then((result) => {
+                    createGermanConjugatedNotes(data);
+                });
+            break
+            case 'babFrench':
+                ankiInvoke('createDeck', 6, {deck: FRENCH_DECK})
+                .then((result) => {
+                    createFrenchConjugatedNotes(data);
+                });
+            break;
+        }
+        console.log('finished styling', result);
     });
-    ankiInvoke('createDeck', 6, {deck: FRENCH_DECK})
-    .then((result) => {
-        createFrenchConjugatedNotes();
-    });
-});
+}
 
 
 const objectToHtml = (obj) => {
@@ -107,7 +136,7 @@ const objectToHtml = (obj) => {
 };
 
 
-const createGermanConjugatedNotes = () => {
+const createGermanConjugatedNotes = (conjugationGermanData = null) => {
     const notes = [];
     if(typeof conjugationGermanData !== 'undefined') {
         Array.prototype.forEach.call(conjugationGermanData, (value, key) => {
@@ -156,7 +185,7 @@ const createGermanConjugatedNotes = () => {
 };
 
 
-const createFrenchConjugatedNotes = () => {
+const createFrenchConjugatedNotes = (conjugationFrenchData = null) => {
     const notes = [];
     if(typeof conjugationFrenchData !== 'undefined') {
         Array.prototype.forEach.call(conjugationFrenchData, (value, key) => {
