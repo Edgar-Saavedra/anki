@@ -14,7 +14,8 @@
     "require": {
         "mmucklo/krumo": "^0.6.0",
         "eaglewu/phpexcel": "^1.8",
-        "guzzlehttp/guzzle": "^6.5"
+        "guzzlehttp/guzzle": "^6.5",
+        "sunra/php-simple-html-dom-parser": "^1.5"
     },
     "autoload": {
         "psr-4": {
