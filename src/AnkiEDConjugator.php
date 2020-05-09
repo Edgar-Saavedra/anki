@@ -25,8 +25,9 @@ class AnkiEDConjugator {
     $unwanted_array = array(    
       'Ä'=>'a:','Ö'=>'o:','Ü'=>'u:','ß'=>'sZ','ä'=>'a:','ö'=>'o:','ü'=>'u:');
     $str = trim($str);
-    $str = strtr( $str, $unwanted_array );
     $str = strtolower($str);
+    $str = strtr( $str, $unwanted_array );
+    $str = preg_replace('/\s+/', '', $str);
     return $str;
   }
   static function prepForGermanBab($str) {
@@ -153,6 +154,7 @@ class AnkiEDConjugator {
   }
 
   static function processVerbixConjugationPage($lang = null, $html = null, $verb = null, $translation = null) {
+    $allowed_tags = "<div><span><pre><p><br><hr><hgroup><h1><h2><h3><h4><h5><h6><ul><ol><li><dl><dt><dd><strong><em><b><i><u><img><a><abbr><address><blockquote>";
     $conjugations = array(
       'verb' => $verb,
       'translation' => $translation,
@@ -164,6 +166,28 @@ class AnkiEDConjugator {
       $elems = $dom->find('.columns-main > div');
       foreach($elems as $key => $value) {
         foreach ($value->find('.google-auto-placed') as $node){
+          if($node->parentNode)
+          $node->parentNode->removeChild($node);
+          $node->outertext = '';
+        }
+        foreach ($value->find('.adsbygoogle') as $node){
+          if($node->parentNode)
+          $node->parentNode->removeChild($node);
+          $node->outertext = '';
+        }
+        foreach ($value->find('.advertising') as $node){
+          if($node->parentNode)
+          $node->parentNode->removeChild($node);
+          $node->outertext = '';
+        }
+        foreach ($value->find('iframe') as $node){
+          if($node->parentNode)
+          $node->parentNode->removeChild($node);
+          $node->outertext = '';
+        }
+        foreach ($value->find('script') as $node){
+          if($node->parentNode)
+          $node->parentNode->removeChild($node);
           $node->outertext = '';
         }
         $conjugations['conjugations_found'] = true;
@@ -188,8 +212,8 @@ class AnkiEDConjugator {
                 if($tense_block_header) {
                   $tense_block_header_slug = AnkiEDConjugator::getSlug($lang, $tense_block_header);
                   $conjugations[$header_slug]['tenses'][$tense_block_header_slug] = array(
-                    'tense' => trim($tense_block_header),
-                    'tense_category' => trim($header),
+                    'tense' => strip_tags(trim($tense_block_header)),
+                    'tense_category' => strip_tags(trim($header)),
                     'conjugations' => array()
                   );
                   $conj_items = $tense_sub_block_block->find('.verbtense');
@@ -204,10 +228,10 @@ class AnkiEDConjugator {
                       $pronoun = $pronoun[0] ? $pronoun[0]->innertext() : null;
                       $conjugation = $conjugation[0] ? $conjugation[0]->innertext() : null;
                       $conjugation_item = array(
-                        'tense_category' => trim($header),
-                        'tense' => trim($tense_block_header),
-                        'pronoun' => trim($pronoun),
-                        'conjugation' => trim($conjugation)
+                        'tense_category' => strip_tags(trim($header), $allowed_tags),
+                        'tense' => strip_tags(trim($tense_block_header),$allowed_tags),
+                        'pronoun' => strip_tags(trim($pronoun),$allowed_tags),
+                        'conjugation' => strip_tags(trim($conjugation),$allowed_tags)
                       );
                       $conjugations[$header_slug]['tenses'][$tense_block_header_slug]['conjugations'][$pronoun ? AnkiEDConjugator::getSlug($lang, $pronoun) : $key] = $conjugation_item;
                     }
@@ -233,10 +257,10 @@ class AnkiEDConjugator {
                 $pronoun = $pronoun[0] ? $pronoun[0]->innertext() : null;
                 $conjugation = $conjugation[0] ? $conjugation[0]->innertext() : null;
                 $conjugation_item = array(
-                  'tense_category' => trim($header),
-                  'tense' => trim($tense_block_header),
-                  'pronoun' => trim($pronoun),
-                  'conjugation' => trim($conjugation)
+                  'tense_category' => strip_tags(trim($header), $allowed_tags),
+                  'tense' => strip_tags(trim($tense_block_header),$allowed_tags),
+                  'pronoun' => strip_tags(trim($pronoun),$allowed_tags),
+                  'conjugation' => strip_tags(trim($conjugation),$allowed_tags)
                 );
                 $conjugations[$header_slug]['tenses'][$header_slug]['conjugations'][$pronoun ? AnkiEDConjugator::getSlug($lang, $pronoun) : $key] = $conjugation_item;
               }
@@ -246,7 +270,7 @@ class AnkiEDConjugator {
             foreach ($dom->find('h3') as $node){
               $node->outertext = '';
             }
-            $conjugations[$header_slug]['content'] = trim($dom->innertext);
+            $conjugations[$header_slug]['content'] = strip_tags(trim($dom->innertext), $allowed_tags);
           }
         }
       }
@@ -293,33 +317,36 @@ class AnkiEDConjugator {
   static function getGermanConjugationVerbix($client = null, $verb = null, $translation = null) {
     if($verb) {
       $verb_encode = AnkiEDConjugator::prepForVerbixGerman($verb);
-      /** 
-       * @see JonnyW\PhantomJs\Http\Request
-       **/
       $response = $client->getMessageFactory()->createResponse();
       $request = $client->getMessageFactory()->createRequest();
       $request->setMethod('GET');
       $request->setUrl("https://www.verbix.com/webverbix/German/$verb_encode.html");
-      $request->setTimeout(5000);
-      /** 
-       * @see JonnyW\PhantomJs\Http\Response 
-       **/
       $promise = new Promise(function () use (&$promise, $client, $request, $response) {
         $promise->resolve($client->send($request, $response));
       });
       return $promise->then(function($response) use ( $verb, $translation ) {
+        krumo($verb. ' ---- status ---- '.$response->getStatus());
         if($response->getStatus() === 200) {
           $html = $response->getContent();
           return AnkiEDConjugator::processVerbixConjugationPage("german", $html, $verb, $translation);
         }
-        return false;
+        return array(
+          'verb' => $verb,
+          'translation' => $translation,
+          'conjugations_found' => false,
+          'language' => "german",
+          "not_in_verbix" => true
+        );
       });
-      // return $response->then(function($response) use ( $verb, $translation ) {
-      //   return AnkiEDConjugator::processBabConjugationPage('german', $response->getBody()->getContents(), $verb, $translation);
-      // });
     }
-    $promise = new Promise(function () use (&$promise) {
-      $promise->resolve(false);
+    $promise = new Promise(function () use (&$promise, $verb, $translation) {
+      $promise->resolve(array(
+        'verb' => $verb,
+        'translation' => $translation,
+        'conjugations_found' => false,
+        'language' => "german",
+        "not_in_verbix" => true
+      ));
     });
     return $promise->then(function($value) {
       return $value;
@@ -339,7 +366,7 @@ class AnkiEDConjugator {
         $promise->resolve($client->send($request, $response));
       });
       return $promise->then(function($response) use ( $verb, $translation ) {
-        krumo($verb. '---- status ---- '.$response->getStatus());
+        krumo($verb. ' ---- status ---- '.$response->getStatus());
         if($response->getStatus() === 200) {
           $html = $response->getContent();
           return AnkiEDConjugator::processVerbixConjugationPage("french", $html, $verb, $translation);

@@ -25,13 +25,20 @@ function getBabGermanConjPromises($verbe_data) {
 function getVerbixGermanConjPromises($verbe_data) {
   $pomises = [];
   $client = JonnyW\PhantomJs\Client::getInstance();
+  $client->isLazy();
+  $client->getEngine()->addOption('--load-images=false');
+  $client->getEngine()->addOption('--ignore-ssl-errors=true');
   foreach($verbe_data as $key => $value) {
     $verbe = $value['Verb']['value'];
     $translation = $value['Translation']['value'];
-    $pomises[] = AnkiEDConjugator::getGermanConjugationVerbix($client, $verbe, $translation);
+    if($verbe)
+      $pomises[] = AnkiEDConjugator::getGermanConjugationVerbix($client, $verbe, $translation);
   }
   all($pomises)->then(function($data) {
-    krumo($data);
+    krumo('all done! writting the german conjugations to file!');
+    $fp = fopen('german-conjugations-verbix.json', 'w');
+    fwrite($fp, json_encode($data));
+    fclose($fp);
     // print "<script> var conjugationGermanData=".dataToJson($data).";</script>";
     return $data;
   })->wait();
@@ -80,18 +87,18 @@ function getBabFrenchConjData() {
 }
 
 // $load_js_after_these = [];
-// $promise_german = new Promise();
-// $promise_german->resolve(dataArrayFromSheet(realpath('./verbes.xlsx')));
-// $promise_german->then(function($verbe_data) {
-//   // getBabGermanConjPromises($verbe_data);
-//   getVerbixGermanConjPromises($verbe_data);
-// })->then(function() {
-//   // getBabFrenchConjData();
-// });
-
-$promise_french = new Promise();
-$promise_french->resolve(dataArrayFromSheet(realpath('./verbes.xlsx'),1));
-$promise_french->then(function($verbe_data) {
-  getVerbixFrenchConjPromises($verbe_data);
+$promise_german = new Promise();
+$promise_german->resolve(dataArrayFromSheet(realpath('./verbes.xlsx')));
+$promise_german->then(function($verbe_data) {
+  // getBabGermanConjPromises($verbe_data);
+  getVerbixGermanConjPromises($verbe_data);
+})->then(function() {
+  // getBabFrenchConjData();
 });
+
+// $promise_french = new Promise();
+// $promise_french->resolve(dataArrayFromSheet(realpath('./verbes.xlsx'),1));
+// $promise_french->then(function($verbe_data) {
+//   getVerbixFrenchConjPromises($verbe_data);
+// });
 ?>
