@@ -4,7 +4,9 @@ use Sunra\PhpSimple\HtmlDomParser;
 use GuzzleHttp\Client;
 use GuzzleHttp\Promise\Promise;
 
+
 class AnkiEDConjugator {
+  static $ALLOWED_TAGS = "<div><span><pre><p><br><hr><hgroup><h1><h2><h3><h4><h5><h6><ul><ol><li><dl><dt><dd><strong><em><b><i><u><img><a><abbr><address><blockquote>";
   static function prepForVerbixFrench($str) {
     $unwanted_array = array(    
       'â'=>'a>',  
@@ -22,11 +24,10 @@ class AnkiEDConjugator {
     return $str;
   }
   static function prepForVerbixGerman($str) {
-    $unwanted_array = array(    
-      'Ä'=>'a:','Ö'=>'o:','Ü'=>'u:','ß'=>'sZ','ä'=>'a:','ö'=>'o:','ü'=>'u:');
+    $unwanted_array = array('Ä'=>'a:','Ö'=>'o:','Ü'=>'u:','ß'=>'sZ','ä'=>'a:','ö'=>'o:','ü'=>'u:');
+    $str = strtr( $str, $unwanted_array );
     $str = trim($str);
     $str = strtolower($str);
-    $str = strtr( $str, $unwanted_array );
     $str = preg_replace('/\s+/', '', $str);
     return $str;
   }
@@ -154,7 +155,7 @@ class AnkiEDConjugator {
   }
 
   static function processVerbixConjugationPage($lang = null, $html = null, $verb = null, $translation = null) {
-    $allowed_tags = "<div><span><pre><p><br><hr><hgroup><h1><h2><h3><h4><h5><h6><ul><ol><li><dl><dt><dd><strong><em><b><i><u><img><a><abbr><address><blockquote>";
+    $allowed_tags = AnkiEDConjugator::$ALLOWED_TAGS;
     $conjugations = array(
       'verb' => $verb,
       'translation' => $translation,
@@ -324,12 +325,18 @@ class AnkiEDConjugator {
       $promise = new Promise(function () use (&$promise, $client, $request, $response) {
         $promise->resolve($client->send($request, $response));
       });
-      return $promise->then(function($response) use ( $verb, $translation ) {
-        krumo($verb. ' ---- status ---- '.$response->getStatus());
+      return $promise->then(function($response) use ( $verb, $translation, $verb_encode ) {
         if($response->getStatus() === 200) {
+          krumo($verb. ' ---- status ---- '.$response->getStatus());
           $html = $response->getContent();
-          return AnkiEDConjugator::processVerbixConjugationPage("german", $html, $verb, $translation);
+          $data = AnkiEDConjugator::processVerbixConjugationPage("german", $html, $verb, $translation);
+          
+          if($data['conjugations_found'] == false) {
+            krumo($data['verb']. 'not found! but got a 200 check : https://de.bab.la/konjugieren/deutsch/'. $verb_encode. '.html');
+          }
+          return $data;
         }
+        krumo('check : https://de.bab.la/konjugieren/deutsch/'. $verb_encode. '.html --- we got a status:' - $response->getStatus());
         return array(
           'verb' => $verb,
           'translation' => $translation,
@@ -339,13 +346,289 @@ class AnkiEDConjugator {
         );
       });
     }
-    $promise = new Promise(function () use (&$promise, $verb, $translation) {
+    $promise = new Promise(function () use (&$promise, $verb, $translation, $verb_encode) {
+      krumo($verb. 'not found! check : https://de.bab.la/konjugieren/deutsch/'. $verb_encode. '.html');
       $promise->resolve(array(
         'verb' => $verb,
         'translation' => $translation,
         'conjugations_found' => false,
         'language' => "german",
         "not_in_verbix" => true
+      ));
+    });
+    return $promise->then(function($value) {
+      return $value;
+    });
+  }
+
+  static function stringCotains($needles, $haystack) {
+    return count(array_intersect($needles, explode(" ", preg_replace("/[^A-Za-z0-9' -]/", "", $haystack))));
+  }
+
+  static function processLaroussePageDefinition($language, $html, $word, $translation) {
+    $definition = array(
+      'word' => $word,
+      'translation' => $translation,
+      'definition_found' => false,
+      'language' => $language,
+      'definition' => array(
+        'word' => $word,
+        'info' => array(),
+        'value' => array(),
+        'has_mp3' => false,
+      ),
+      'has_gender' => false,
+      'not_found' => true,
+    );
+    if($html) {
+      $dom = HtmlDomParser::str_get_html($html);
+      $definition_block = $dom->find('#definition');
+      if(sizeof($definition_block)) {
+        $definition_block = $definition_block[0];
+        $definitions = $definition_block->find('.DivisionDefinition');
+        foreach($definitions as $key => $value) {
+          $definition['definition']['value'][] = $value->innertext();
+          $definition['definition_found'] = true;
+        }
+      }
+      $header = $dom->find('.header-article');
+      if(sizeof($header)) {
+        $header = $header[0];
+        $audio = $header->find('.AdresseDefinition [type="audio/mp3"]');
+        $audio = sizeof($audio) ? $audio[0] : null;
+        if($audio) {
+          $mp3 = $audio->getAttribute('id');
+          $info['value'] = 'https://www.larousse.fr/dictionnaires-prononciation/francais/tts/'.$mp3;
+          $definition['definition']['has_mp3'] = true;
+          $definition['definition']['info']['mp3'] = $info;
+        }
+        $grammar_info = $header->find('.CatgramDefinition');
+        if(sizeof($grammar_info)) {
+          $links = $grammar_info[0]->find('.lienconj');
+          foreach($links as $key=>$value) {
+            $href = $value->getAttribute('href');
+            $value->setAttribute('href', 'https://www.larousse.fr/'.$href);
+            $value->setAttribute('target', '_blank');
+          }
+          $grammar_info = $grammar_info[0]->innertext();
+          $definition['definition']['info']['grammatical_info'] = array(
+            'value' => $grammar_info
+          );
+          $type_info = array_map('trim',explode(' ',trim(strip_tags($grammar_info))));
+          if(sizeof($type_info)) {
+            if($type_info[0] = 'nom') {
+              $genders = array(
+                'masculin' => 'm',
+                'féminin' => 'f'
+              );
+              foreach($genders as $key => $value) {
+                if(in_array($key, $type_info)) {
+                  $definition['has_gender'] = true;
+                  $definition['gender'] = $value;
+                }
+              }
+            }
+          }
+        }
+      }
+      $definition['not_found'] = false;
+    } else {
+      krumo('ATTENTION!: '.$word. ' -- no definition found!');
+    }
+    return $definition;
+  }
+
+  static function processDwdsPageDefinition($language, $html, $word, $translation) {
+    $definition = array(
+      'word' => $word,
+      'translation' => $translation,
+      'definition_found' => false,
+      'language' => $language,
+      'definition' => array(
+        'word' => $word,
+        'info' => array(),
+        'value' => array(),
+        'has_mp3' => false,
+      ),
+      'has_gender' => false,
+      'not_found' => true,
+    );
+    if($html) {
+      $dom = HtmlDomParser::str_get_html($html);
+      $elems = $dom->find('.dwdswb-artikel');
+      if(sizeof($elems)) {
+        $word = $elems[0]->find('h1.dwdswb-ft-lemmaansatz');
+        $word = $word[0] ? $word[0]->innertext() : null;
+
+        $definition['definition']['word'] = $word;
+        $defintion_info_block = $elems[0]->find('.dwdswb-ft-block');
+
+
+        $definition['definition_found'] = false;
+        $definition['information_found'] = false;
+        foreach($defintion_info_block as $key=> $value) {
+          $label = $value->find('.dwdswb-ft-blocklabel');
+          $label_text = $label[0] ? $label[0]->innertext() : null;
+          $text = $value->find('.dwdswb-ft-blocktext');
+          $text_value = $text[0] ? $text[0]->innertext() : null;
+
+          if($text_value && $label_text) {
+            $definition['information_found'] = true;
+            $info_label = AnkiEDConjugator::getSlug($language, trim($label_text))."_info";
+            $info = array();
+            $info['label'] = $label_text;
+            $info['value'] = $text_value;
+            if($info_label == 'aussprache__info') {
+              $audio = $dom->find('[type="audio/mpeg"]');
+              $audio = sizeof($audio) ? $audio[0] : null;
+              if($audio) {
+                $mp3 = $audio->getAttribute('src');
+                $mp3 = preg_replace('/\/\//', 'https://', $mp3);
+                $info['value'] = $mp3;
+                $definition['definition']['has_mp3'] = true;
+                $definition['definition']['info']['mp3'] = $info;
+              }
+            } else if($info_label == 'grammatik__info') {
+              $definition['definition']['info']['grammatical_info'] = $info;
+              $type_info = array_map('trim',explode('·',trim(strip_tags($text_value))));
+              if(sizeof($type_info)) {
+                $type_info = $type_info[0];
+                if(strpos($type_info, 'Substantiv') == 0) {
+                  $genders = array(
+                    'Maskulinum' => 'm',
+                    'Femininum' => 'f',
+                    'Neutrum' => 'n'
+                  );
+                  foreach($genders as $key => $value) {
+                    if(strpos($type_info, $key)) {
+                      $definition['has_gender'] = true;
+                      $definition['gender'] = $value;
+                    }
+                  }
+                }
+              }
+            }
+            else {
+              $definition['definition']['info'][$info_label] = $info;
+            }
+          }
+        }
+
+        $bedeutung_def_container = $dom->find('#d-1-1');
+        $bedeutung_def_container = $bedeutung_def_container[0] ? $bedeutung_def_container[0] : null;
+
+        if($bedeutung_def_container) {
+          $bedeutung_def = $bedeutung_def_container->find('.dwdswb-lesart-content .dwdswb-lesart-def .dwdswb-definitionen .dwdswb-definition');
+          $bedeutung_def = $bedeutung_def[0] ? $bedeutung_def[0]->innertext() : null;
+          if($bedeutung_def) {
+            $definition['definition']['value'][0] = $bedeutung_def;
+            $definition['definition_found'] = true;
+          }
+        }
+        $definition['not_found'] = false;
+      }
+      else {
+        krumo('ACHTUNG!: '.$word. ' -- no definition found!');
+      }
+    } else {
+      krumo('ACHTUNG!: '.$word. ' -- no definition found!');
+    }
+    return $definition;
+  }
+
+
+  static function frenchDefinitionLarousse($client = null, $word = null, $translation = null) {
+    if($word) {
+      $word_encode = $word;
+      $response = $client->requestAsync('GET', "https://www.larousse.fr/dictionnaires/francais/$word_encode");
+      return $response->then(function($response) use ( $word, $translation, $word_encode ) {
+        if($response->getStatusCode() == '200'){
+          krumo($word. ' ---- status ---- '.'200 '."https://www.larousse.fr/dictionnaires/francais/$word_encode");
+          $html = $response->getBody()->getContents();
+          return AnkiEDConjugator::processLaroussePageDefinition('french', $html, $word, $translation, $word_encode);
+        }
+        krumo($word. ' ---- not found! Something is up. ---- '.$response->getStatusCode()." https://www.larousse.fr/dictionnaires/francais/$word_encode");
+        return array(
+          'word' => $word,
+          'translation' => $translation,
+          'definition_found' => false,
+          'language' => 'french',
+          'definition' => array(
+            'word' => $word,
+            'info' => array(),
+            'value' => array(),
+            'has_mp3' => false,
+          ),
+          'has_gender' => false,
+          'not_found' => true,
+        );
+      });
+    }
+    $promise = new Promise(function () use ( $word, $translation, &$promise, $word_encode) {
+      krumo($word. " ---- not found! Something is up. ----  https://www.dwds.de/wb/$word_encode");
+      $promise->resolve(array(
+        'word' => $word,
+        'translation' => $translation,
+        'definition_found' => false,
+        'language' => 'french',
+        'definition' => array(
+          'word' => $word,
+          'info' => array(),
+          'value' => array(),
+          'has_mp3' => false,
+        ),
+        'has_gender' => false,
+        'not_found' => true,
+      ));
+    });
+    return $promise->then(function($value) {
+      return $value;
+    });
+  }
+
+  //https://www.dwds.de/wb/W%C3%B6rterbuch
+  static function germanDefinitionDwds($client = null, $word = null, $translation = null) {
+    if($word) {
+      $word_encode = urlencode($word);
+      $response = $client->requestAsync('GET', "https://www.dwds.de/wb/$word_encode");
+      return $response->then(function($response) use ( $word, $translation, $word_encode ) {
+        if($response->getStatusCode() == '200'){
+          krumo($word. ' ---- status ---- '.'200 '."https://www.dwds.de/wb/$word_encode");
+          $html = $response->getBody()->getContents();
+          return AnkiEDConjugator::processDwdsPageDefinition('german', $html, $word, $translation, $word_encode);
+        }
+        krumo($word. ' ---- not found! Something is up. ---- '.$response->getStatusCode()." https://www.dwds.de/wb/$word_encode");
+        return array(
+          'word' => $word,
+          'translation' => $translation,
+          'definition_found' => false,
+          'language' => 'german',
+          'definition' => array(
+            'word' => $word,
+            'info' => array(),
+            'value' => array(),
+            'has_mp3' => false,
+          ),
+          'has_gender' => false,
+          'not_found' => true,
+        );
+      });
+    }
+    $promise = new Promise(function () use ( $word, $translation, &$promise, $word_encode) {
+      krumo($word. " ---- not found! Something is up. ----  https://www.dwds.de/wb/$word_encode");
+      $promise->resolve(array(
+        'word' => $word,
+        'translation' => $translation,
+        'definition_found' => false,
+        'language' => 'german',
+        'definition' => array(
+          'word' => $word,
+          'info' => array(),
+          'value' => array(),
+          'has_mp3' => false,
+        ),
+        'has_gender' => false,
+        'not_found' => true,
       ));
     });
     return $promise->then(function($value) {

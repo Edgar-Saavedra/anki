@@ -1,4 +1,7 @@
 french-conjugations-verbix.json
+german-definitions-dwds.json
+german-french-larousse.json
+german-conjugations-verbix.json
 *.xlsx
 vendor
 node_modules

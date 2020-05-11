@@ -1,6 +1,6 @@
 
-export const GERMAN_DECK = 'german-conjugations';
-export const FRENCH_DECK = 'french-conjugations';
+export const GERMAN_DECK = 'german';
+export const FRENCH_DECK = 'french';
 
 export const getJson = (path) => {
     var myHeaders = new Headers();

@@ -23,15 +23,37 @@ export class Conjugation extends React.Component {
       </div>
     )) : null
   }
-  render() {
-    return <div className="translation">
-      <h1>{this.props.element.translation}</h1>
-      <h2>{this.props.element.verb}</h2>
-      <div dangerouslySetInnerHTML={{ __html: this.props.element.nominal_forms ? this.props.element.nominal_forms.content : null }}></div>
+  printLangConjugations(element) {
+    if(element.language == 'german')
+    return <div>
       { this.printConjugation(this.props.element, 'indicative') }
       { this.printConjugation(this.props.element, 'conjunctive_i_and_ii') }
       { this.printConjugation(this.props.element, 'conditional') }
       { this.printConjugation(this.props.element, 'imperative') }
+    </div>
+    if(element.language == 'french')
+    return <div>
+      <h3>Conjugations</h3>
+      { this.printConjugation(this.props.element, 'indicatif') }
+      { this.printConjugation(this.props.element, 'subjonctif') }
+      { this.printConjugation(this.props.element, 'conditionnel') }
+      { this.printConjugation(this.props.element, 'imperatif') }
+    </div>
+  }
+  render() {
+    let definition = null;
+    if(this.props.wordData && this.props.wordData[this.props.elementKey])
+      definition = this.props.wordData[this.props.elementKey];
+    return <div className="translation">
+      <h1>{this.props.element.translation}</h1>
+      <h2>{this.props.element.verb}</h2>
+      {definition && definition.definition.has_mp3 ? 
+          <audio controls><source src={`${definition.definition.info.mp3.value}`} type="audio/mpeg"/></audio>
+        : null}
+      <div dangerouslySetInnerHTML={{ __html: this.props.element.nominal_forms ? this.props.element.nominal_forms.content : null }}></div>
+      {
+        this.printLangConjugations(this.props.element)
+      }
       {this.props.element.translations? 
         <div>
           <h3>Translations</h3>

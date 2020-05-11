@@ -1,54 +1,31 @@
 import {
   GERMAN_DECK,
   getJson,
-  ankiInvoke
+  FRENCH_DECK
 } from "./helpers";
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { renderToString } from 'react-dom/server'
 import {
   App
 } from "./App";
-import {
-  Conjugation
-} from "./Conjugation";
 
-getJson("/german-conjugations-verbix.json")
-.then((data) => {
+const gVerbs = getJson("/german-conjugations-verbix.json");
+const gWords = getJson("/german-definitions-dwds.json");
+const fVerbs = getJson("/french-conjugations-verbix.json");
+const fWords = getJson("/german-french-larousse.json");
+
+Promise.all([
+  gVerbs,
+  gWords,
+  fVerbs,
+  fWords
+]).then((data) => {
   if(data) {
     ReactDOM.render(
-      <App germanData={data}/>, 
+      <App verbData={data[0]} wordData={data[1]} deck={GERMAN_DECK}/>, 
       document.querySelector('#app'));
-    ankiInvoke('createDeck', 6, {deck: GERMAN_DECK})
-    .then((result) => {
-      console.log('deck created', result);
-      const notes = [];
-      data.map((element, key) => {
-        notes.push(
-          {
-            "deckName": GERMAN_DECK,
-            "modelName": "Basic",
-            "fields": {
-                "Front": `<h1>${element["verb"]}</h1>`,
-                "Back": renderToString(<Conjugation element={element} key={key}></Conjugation>),
-                "slug": `${element["verb"]}`
-            },
-            "options": {
-                "allowDuplicate": false,
-                "duplicateScope": "deck"
-            },
-            "tags": [
-                "verbes"
-            ]
-          }
-        );
-      });
-      ankiInvoke('addNotes', 6, {
-        "notes": notes
-      })
-      .then((result) => {
-          console.log('german notes created', result);
-      })
-    });
+    // ReactDOM.render(
+    //   <App verbData={data[2]} wordData={data[3]} deck={FRENCH_DECK}/>, 
+    //   document.querySelector('#app'));
   }
-});
+})
