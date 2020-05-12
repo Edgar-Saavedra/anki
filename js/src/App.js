@@ -13,7 +13,10 @@ import { renderToString } from 'react-dom/server'
 export class App extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { loadingData: false };
+    this.state = { 
+      loadingVerbData: false,
+      loadingWordData: false
+    };
   }
   loadWordTabels() {
     if(this.props.wordData) {
@@ -22,7 +25,7 @@ export class App extends React.Component {
       <hr/>
       <button onClick={this.uploadWordData.bind(this)}>Upload All This Beautiful Word Data!</button>
       {
-        this.state.loadingData ? <div>Your data is being sent to anki! Just a sec this can take a while...</div>: ''
+        this.state.loadingWordData ? <div>Your data is being sent to anki! Just a sec this can take a while...</div>: ''
       }
       {
         Object.keys(this.props.wordData).map((key, index) => {
@@ -39,29 +42,12 @@ export class App extends React.Component {
       <hr/>
       <button onClick={this.uploadVerbData.bind(this)}>Upload All This Beautiful Verb Data!</button>
       {
-        this.state.loadingData ? <div>Your data is being sent to anki! Just a sec this can take a while...</div>: ''
+        this.state.loadingVerbData ? <div>Your data is being sent to anki! Just a sec this can take a while...</div>: ''
       }
       {
         Object.keys(this.props.verbData).map((key, index) => {
           return <Conjugation wordData={this.props.wordData} element={this.props.verbData[key]} key={key} elementKey={key}></Conjugation>;
         })
-      }
-    </div>
-    }
-  }
-  loadWordTables() {
-    if(this.props.verbData) {
-      return <div>
-      <h1>Verb Data</h1>
-      <hr/>
-      <button onClick={this.uploadWordData.bind(this)}>Upload All This Beautiful Verb Data!</button>
-      {
-        this.state.loadingData ? <div>Your data is being sent to anki! Just a sec this can take a while...</div>: ''
-      }
-      {
-        this.props.verbData.map((element, key) => (
-          <Conjugation element={element} key={key}></Conjugation>
-        ))
       }
     </div>
     }
@@ -72,7 +58,7 @@ export class App extends React.Component {
     const that = this;
     that.setState((state, props) => {
       return {
-        loadingData: true
+        loadingWordData: true
       }
     });
     ankiInvoke('createDeck', 6, {deck: deck})
@@ -108,7 +94,7 @@ export class App extends React.Component {
       .then((result) => {
           that.setState((state, props) => {
             return {
-              loadingData: false
+              loadingWordData: false
             }
           });
           console.log(`your ${deck} notes were created!`, result);
@@ -122,7 +108,7 @@ export class App extends React.Component {
     const that = this;
     that.setState((state, props) => {
       return {
-        loadingData: true
+        loadingVerbData: true
       }
     });
     ankiInvoke('createDeck', 6, {deck: deck})
@@ -156,7 +142,7 @@ export class App extends React.Component {
       .then((result) => {
           that.setState((state, props) => {
             return {
-              loadingData: false
+              loadingVerbData: false
             }
           });
           console.log(`your ${deck} notes were created!`, result);

@@ -24,6 +24,7 @@ Promise.all([
     // ReactDOM.render(
     //   <App verbData={data[0]} wordData={data[1]} deck={GERMAN_DECK}/>, 
     //   document.querySelector('#app'));
+    console.log(data[3]);
     ReactDOM.render(
       <App verbData={data[2]} wordData={data[3]} deck={FRENCH_DECK}/>, 
       document.querySelector('#app'));

@@ -4,6 +4,7 @@ use GuzzleHttp\Promise\Promise;
 use function AnkiED\dataArrayFromSheet;
 use function AnkiED\dataToJson;
 use function GuzzleHttp\Promise\all;
+use GuzzleHttp\Psr7;
 
 use AnkiED\AnkiEDConjugator;
 
@@ -121,24 +122,28 @@ function getVerbixFrenchConjPromises($verbe_data) {
 }
 
 //getFrenchConjugationLarousse
-function getLarousseFrenchConjPromises($verbe_data) {
+function getLarousseFrenchConjPromises($verbe_data, $existing_data) {
   $pomises = [];
   $client = new GuzzleHttp\Client(['timeout' => 20]);
   foreach($verbe_data as $key => $value) {
     $verbe = $value['verbe']['value'];
     $translation = $value['translation']['value'];
     if($verbe && $translation) {
-      $promise = AnkiEDConjugator::getFrenchConjugationLarousse($client, $verbe, $translation);
-      if($key % 10 == 0) {
-        $promise->wait();
+      $slug = AnkiEDConjugator::frenchSlugString($verbe);
+      if(!$existing_data[$slug]) {
+        $promise = AnkiEDConjugator::getFrenchConjugationLarousse($client, $verbe, $translation);
+        if($key % 10 == 0) {
+          $promise->wait();
+        }
+        $pomises[$slug] = $promise;
       }
-      $pomises[AnkiEDConjugator::frenchSlugString($verbe)] = $promise;
     }
   }
-  all($pomises)->then(function($data) {
+  all($pomises)->then(function($data) use ($existing_data){
     krumo('all done! writting the french conjugations to file!');
     $fp = fopen('french-conjugations-larousse.json', 'w');
-    fwrite($fp, json_encode($data));
+    $json_data = json_encode(array_merge($data, $existing_data));
+    fwrite($fp, $json_data);
     fclose($fp);
     // print "<script> var conjugationGermanData=".dataToJson($data).";</script>";
     return $data;
@@ -148,24 +153,28 @@ function getLarousseFrenchConjPromises($verbe_data) {
 /**
  * Get FRENCH definitions
  */
-function getLaRousseFrenchDefData($verbe_data) {
+function getLaRousseFrenchDefData($verbe_data, $existing_data) {
   $pomises = [];
   $client = new GuzzleHttp\Client(['timeout' => 20]);
   foreach($verbe_data as $key => $value) {
     $word = $value['word']['value'];
     $translation = $value['translation']['value'];
     if($word && $translation) {
-      $pomise = AnkiEDConjugator::frenchDefinitionLarousse($client, $word, $translation);
-      if($key % 10 == 0) {
-        $pomise->wait();
+      $slug = AnkiEDConjugator::frenchSlugString($word);
+      if(!$existing_data[$slug]) {
+        $pomise = AnkiEDConjugator::frenchDefinitionLarousse($client, $word, $translation);
+        if($key % 10 == 0) {
+          $pomise->wait();
+        }
+        $pomises[$slug] = $pomise;
       }
-      $pomises[AnkiEDConjugator::frenchSlugString($word)] = $pomise;
     }
   }
-  all($pomises)->then(function($data) {
+  all($pomises)->then(function($data) use ($existing_data) {
     krumo('all done! writting the french defintions to file!');
     $fp = fopen('german-french-larousse.json', 'w');
-    fwrite($fp, json_encode($data));
+    $json_data = json_encode(array_merge($data, $existing_data));
+    fwrite($fp, $json_data);
     fclose($fp);
     // print "<script> var conjugationGermanData=".dataToJson($data).";</script>";
     return $data;
@@ -187,16 +196,27 @@ function getLaRousseFrenchDefData($verbe_data) {
 //  END: german def and conj data
 
 
+$string = file_get_contents(realpath('./french-conjugations-larousse.json'));
+$json_a = json_decode($string, true);
+
 //  french def and conj data
 $promise_french = new Promise();
-$promise_french->resolve(dataArrayFromSheet(realpath('./verbes.xlsx'),1));
-$promise_french->then(function($verbe_data) {
-  getLarousseFrenchConjPromises($verbe_data);
+$promise_french->resolve(array(
+  'verbe_data' => dataArrayFromSheet(realpath('./verbes.xlsx'),1),
+  'existing_data' => $json_a
+));
+$promise_french->then(function($data) {
+  getLarousseFrenchConjPromises($data['verbe_data'], $data['existing_data']);
 })->then(function() {
+  $string = file_get_contents(realpath('./german-french-larousse.json'));
+  $json_a = json_decode($string, true);
   $promise_french_words = new Promise();
-  $promise_french_words->resolve(dataArrayFromSheet(realpath('./verbes.xlsx'),3));
-  $promise_french_words->then(function($word_data) {
-    getLaRousseFrenchDefData($word_data);
+  $promise_french_words->resolve(array(
+    'word_data' => dataArrayFromSheet(realpath('./verbes.xlsx'),3),
+    'existing_data' => $json_a
+  ));
+  $promise_french_words->then(function($data) {
+    getLaRousseFrenchDefData($data['word_data'], $data['existing_data']);
   });
 });
 //  end: french def and conj data
