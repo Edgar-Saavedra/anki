@@ -11,7 +11,7 @@ import {
 
 const gVerbs = getJson("/german-conjugations-verbix.json");
 const gWords = getJson("/german-definitions-dwds.json");
-const fVerbs = getJson("/french-conjugations-verbix.json");
+const fVerbs = getJson("/french-conjugations-larousse.json");
 const fWords = getJson("/german-french-larousse.json");
 
 Promise.all([
@@ -21,11 +21,11 @@ Promise.all([
   fWords
 ]).then((data) => {
   if(data) {
-    ReactDOM.render(
-      <App verbData={data[0]} wordData={data[1]} deck={GERMAN_DECK}/>, 
-      document.querySelector('#app'));
     // ReactDOM.render(
-    //   <App verbData={data[2]} wordData={data[3]} deck={FRENCH_DECK}/>, 
+    //   <App verbData={data[0]} wordData={data[1]} deck={GERMAN_DECK}/>, 
     //   document.querySelector('#app'));
+    ReactDOM.render(
+      <App verbData={data[2]} wordData={data[3]} deck={FRENCH_DECK}/>, 
+      document.querySelector('#app'));
   }
 })

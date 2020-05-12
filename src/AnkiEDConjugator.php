@@ -679,4 +679,139 @@ class AnkiEDConjugator {
       return $value;
     });
   }
+
+  static function getFrenchConjugationLarousse($client = null, $verb = null, $translation = null) {
+    if($verb) {
+      $verb_encode = $verb;
+      $response = $client->requestAsync('GET', "https://www.larousse.fr/conjugaison/francais/$verb_encode");
+      return $response->then(function($response) use ( $verb, $translation, $verb_encode ) {
+        if($response->getStatusCode() == '200'){
+          krumo($verb. ' ---- status ---- '.'200 '."https://www.larousse.fr/conjugaison/francais/$verb_encode");
+          $html = $response->getBody()->getContents();
+          return AnkiEDConjugator::processLaroussePageConjugation('french', $html, $verb, $translation);
+        }
+        krumo($verb. ' ---- not found! Something is up. ---- '.$response->getStatusCode()." https://www.larousse.fr/conjugaison/francais/$verb_encode");
+        return array(
+          'verb' => $verb,
+          'translation' => $translation,
+          'conjugations_found' => false,
+          'language' => "french",
+          'has_mp3' => false,
+        );
+      });
+    }
+    $promise = new Promise(function () use ( $verb, $translation, &$promise, $verb_encode) {
+      krumo($verb. " ---- not found! Something is up. ----  https://www.dwds.de/wb/$verb_encode");
+      $promise->resolve(array(
+        'verb' => $verb,
+        'translation' => $translation,
+        'conjugations_found' => false,
+        'language' => "french",
+        'has_mp3' => false,
+      ));
+    });
+    return $promise->then(function($value) {
+      return $value;
+    });
+  }
+
+  static function _larousseProcessConjugationCategory($parentEl, $conjugations, $lang) {
+    if(sizeof($parentEl)) {
+      $parentEl = $parentEl[0];
+      $header = $parentEl->find('h2');
+      if(sizeof($header)) {
+        $header = $header[0];
+        $header = $header->innerText();
+        $header = strip_tags(trim($header));
+        $header_slug = AnkiEDConjugator::getSlug($lang, $header);
+
+        $tense_blocks = $parentEl->find('div article');
+        foreach($tense_blocks as $key => $value) {
+          $tense_block_header = $value->find('h3');
+          $tense_block_header = $tense_block_header[0];
+          $tense_block_header = $tense_block_header->innertext();
+          $tense_block_header = strip_tags(trim($tense_block_header));
+          $tense_block_header = str_replace('-','',$tense_block_header);
+          $cojugations_pronouns = $value->find('ul li');
+
+          $tense_block_header_slug = AnkiEDConjugator::getSlug($lang, $tense_block_header);
+          $conjugations[$header_slug]['tenses'][$tense_block_header_slug] = array(
+            'tense' => strip_tags(trim($tense_block_header)),
+            'tense_category' => $header,
+            'conjugations' => array()
+          );
+          foreach($cojugations_pronouns as $key => $item) {
+            $pronoun = $item->find('.pronom');
+            $conjugation = $item->find('.verbe');
+            if(sizeof($pronoun) && sizeof($conjugation)) {
+              $pronoun = $pronoun[0];
+              $pronoun = strip_tags(trim($pronoun->innerText()));
+              $conjugation = $conjugation[0];
+              $conjugation = strip_tags(trim($conjugation->innerText()));
+              $conjugation_item = array(
+                'tense_category' => $header,
+                'tense' => $tense_block_header,
+                'pronoun' => $pronoun,
+                'conjugation' => $conjugation
+              );
+              $conjugations['conjugations_found'] = true;
+              $conjugations[$header_slug]['tenses'][$tense_block_header_slug]['conjugations'][$pronoun ? AnkiEDConjugator::getSlug($lang, str_replace(',','',$pronoun)) : $key] = $conjugation_item;
+            }
+          }
+        }
+      }
+    }
+    return $conjugations;
+  }
+
+  static function processLaroussePageConjugation($lang = null, $html = null, $verb = null, $translation = null) {
+    $conjugations = array(
+      'verb' => $verb,
+      'translation' => $translation,
+      'conjugations_found' => false,
+      'language' => $lang,
+      'has_mp3' => false,
+    );
+    if($html) {
+      $dom = HtmlDomParser::str_get_html($html);
+      $conjugations = AnkiEDConjugator::_larousseProcessConjugationCategory($dom->find('#indicatif'), $conjugations, $lang);
+      $conjugations = AnkiEDConjugator::_larousseProcessConjugationCategory($dom->find('#subjonctif'), $conjugations, $lang);
+      $conjugations = AnkiEDConjugator::_larousseProcessConjugationCategory($dom->find('#conditionnel'), $conjugations, $lang);
+      $conjugations = AnkiEDConjugator::_larousseProcessConjugationCategory($dom->find('#imperatif'), $conjugations, $lang);
+      $conjugations = AnkiEDConjugator::_larousseProcessConjugationCategory($dom->find('#infinitif'), $conjugations, $lang);
+      $conjugations = AnkiEDConjugator::_larousseProcessConjugationCategory($dom->find('#participe'), $conjugations, $lang);
+      $mp3 = $dom->find('.art-conj header audio');
+      if(sizeof($mp3)) {
+        $mp3 = $mp3[0];
+        $mp3 = $mp3->getAttribute('id');
+        if($mp3) {
+          $mp3 = 'https://www.larousse.fr/dictionnaires-prononciation/francais/tts/'.$mp3;
+          $conjugations['has_mp3'] = true;
+          $conjugations['mp3'] = $mp3;
+        }
+      }
+      $info = $dom->find('.art-conj header .aux');
+      if(sizeof($info)) {
+        $info = $info[0];
+        foreach($info->find('a') as $key => $value) {
+          $href = $value->getAttribute('href');
+          $value->setAttribute('href', 'https://www.larousse.fr/'.$href);
+          $value->setAttribute('target', '_blank');
+        }
+        $conjugations['aux_info'] = $info->innertext(); 
+      }
+      $def = $dom->find('.art-conj header .def');
+      if(sizeof($def)) {
+        $def = $def[0];
+        foreach($def->find('a') as $key => $value) {
+          $href = $value->getAttribute('href');
+          $value->setAttribute('href', 'https://www.larousse.fr/'.$href);
+          $value->setAttribute('target', '_blank');
+        }
+        $conjugations['definition'] = $def->innertext(); 
+      }
+    }
+    return $conjugations;
+  }
+
 }

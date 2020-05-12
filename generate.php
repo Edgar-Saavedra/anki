@@ -120,6 +120,31 @@ function getVerbixFrenchConjPromises($verbe_data) {
   })->wait();
 }
 
+//getFrenchConjugationLarousse
+function getLarousseFrenchConjPromises($verbe_data) {
+  $pomises = [];
+  $client = new GuzzleHttp\Client(['timeout' => 20]);
+  foreach($verbe_data as $key => $value) {
+    $verbe = $value['verbe']['value'];
+    $translation = $value['translation']['value'];
+    if($verbe && $translation) {
+      $promise = AnkiEDConjugator::getFrenchConjugationLarousse($client, $verbe, $translation);
+      if($key % 10 == 0) {
+        $promise->wait();
+      }
+      $pomises[AnkiEDConjugator::frenchSlugString($verbe)] = $promise;
+    }
+  }
+  all($pomises)->then(function($data) {
+    krumo('all done! writting the french conjugations to file!');
+    $fp = fopen('french-conjugations-larousse.json', 'w');
+    fwrite($fp, json_encode($data));
+    fclose($fp);
+    // print "<script> var conjugationGermanData=".dataToJson($data).";</script>";
+    return $data;
+  })->wait();
+}
+
 /**
  * Get FRENCH definitions
  */
@@ -148,31 +173,31 @@ function getLaRousseFrenchDefData($verbe_data) {
 }
 
 //  german def and conj data
-$promise_german = new Promise();
-$promise_german->resolve(dataArrayFromSheet(realpath('./verbes.xlsx')));
-$promise_german->then(function($verbe_data) {
-  getVerbixGermanConjPromises($verbe_data);
-})->then(function() {
-  $promise_german_words = new Promise();
-  $promise_german_words->resolve(dataArrayFromSheet(realpath('./verbes.xlsx'),2));
-  $promise_german_words->then(function($word_data) {
-    getDwdsGermanDefintionPromises($word_data);
-  });
-});
+// $promise_german = new Promise();
+// $promise_german->resolve(dataArrayFromSheet(realpath('./verbes.xlsx')));
+// $promise_german->then(function($verbe_data) {
+//   getVerbixGermanConjPromises($verbe_data);
+// })->then(function() {
+//   $promise_german_words = new Promise();
+//   $promise_german_words->resolve(dataArrayFromSheet(realpath('./verbes.xlsx'),2));
+//   $promise_german_words->then(function($word_data) {
+//     getDwdsGermanDefintionPromises($word_data);
+//   });
+// });
 //  END: german def and conj data
 
 
 //  french def and conj data
-// $promise_french = new Promise();
-// $promise_french->resolve(dataArrayFromSheet(realpath('./verbes.xlsx'),1));
-// $promise_french->then(function($verbe_data) {
-//   getVerbixFrenchConjPromises($verbe_data);
-// })->then(function() {
-//   $promise_french_words = new Promise();
-//   $promise_french_words->resolve(dataArrayFromSheet(realpath('./verbes.xlsx'),3));
-//   $promise_french_words->then(function($word_data) {
-//     getLaRousseFrenchDefData($word_data);
-//   });
-// });
+$promise_french = new Promise();
+$promise_french->resolve(dataArrayFromSheet(realpath('./verbes.xlsx'),1));
+$promise_french->then(function($verbe_data) {
+  getLarousseFrenchConjPromises($verbe_data);
+})->then(function() {
+  $promise_french_words = new Promise();
+  $promise_french_words->resolve(dataArrayFromSheet(realpath('./verbes.xlsx'),3));
+  $promise_french_words->then(function($word_data) {
+    getLaRousseFrenchDefData($word_data);
+  });
+});
 //  end: french def and conj data
 ?>

@@ -7,7 +7,7 @@ export class Conjugation extends React.Component {
 
   printConjugations(conjugations) {
     return Object.keys(conjugations).map((person, key) => (
-      <div key={"person"+key}>{conjugations[person].pronoun} : {conjugations[person].conjugation}</div>
+      <div key={"person"+key}>{conjugations[person].pronoun ? `${conjugations[person].pronoun} :` : null}  {conjugations[person].conjugation}</div>
     ))
   }
 
@@ -16,9 +16,10 @@ export class Conjugation extends React.Component {
   }
 
   printConjugation(element, conjugation) {
-    return typeof element[conjugation] !== "undefined" && typeof element[conjugation].tenses !== "undefined" ? Object.keys(element[conjugation].tenses).map((tense, key) => (
+    return typeof element[conjugation] !== "undefined" && typeof element[conjugation].tenses !== "undefined" ? 
+    Object.keys(element[conjugation].tenses).map((tense, key) => (
       <div key={element[conjugation].tenses[tense].tense}>
-        <h3>{element[conjugation].tenses[tense].tense_category} - {element[conjugation].tenses[tense].tense}</h3>
+        <h4>{element[conjugation].tenses[tense].tense_category} - {element[conjugation].tenses[tense].tense}</h4>
         {this.printTense(element[conjugation].tenses[tense])}
       </div>
     )) : null
@@ -37,19 +38,35 @@ export class Conjugation extends React.Component {
       { this.printConjugation(this.props.element, 'indicatif') }
       { this.printConjugation(this.props.element, 'subjonctif') }
       { this.printConjugation(this.props.element, 'conditionnel') }
+      { this.printConjugation(this.props.element, 'infinitif') }
       { this.printConjugation(this.props.element, 'imperatif') }
+      { this.printConjugation(this.props.element, 'participe') }
     </div>
   }
   render() {
-    let definition = null;
-    if(this.props.wordData && this.props.wordData[this.props.elementKey])
-      definition = this.props.wordData[this.props.elementKey];
+    let mp3 = null;
+    if(this.props.element.has_mp3) {
+      mp3 = this.props.element.mp3;
+      if(this.props.wordData && this.props.wordData[this.props.elementKey]) {
+        if(this.props.wordData[this.props.elementKey].has_mp3) {
+          mp3 = this.props.wordData[this.props.elementKey].info.mp3.value;
+        }
+      }
+    }
     return <div className="translation">
       <h1>{this.props.element.translation}</h1>
       <h2>{this.props.element.verb}</h2>
-      {definition && definition.definition.has_mp3 ? 
-          <audio controls><source src={`${definition.definition.info.mp3.value}`} type="audio/mpeg"/></audio>
+      {mp3 ? 
+          <audio controls><source src={`${mp3}`} type="audio/mpeg"/></audio>
         : null}
+      {
+        this.props.element.definition ? 
+          <div>
+            <h3>Definition</h3>
+            <div dangerouslySetInnerHTML={{ __html: this.props.element.definition }}></div>
+          </div>
+        : null
+      }
       <div dangerouslySetInnerHTML={{ __html: this.props.element.nominal_forms ? this.props.element.nominal_forms.content : null }}></div>
       {
         this.printLangConjugations(this.props.element)

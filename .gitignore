@@ -5,4 +5,5 @@ german-conjugations-verbix.json
 *.xlsx
 vendor
 node_modules
+french-conjugations-larousse.json
 bin
