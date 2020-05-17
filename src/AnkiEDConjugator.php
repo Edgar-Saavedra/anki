@@ -455,77 +455,82 @@ class AnkiEDConjugator {
     );
     if($html) {
       $dom = HtmlDomParser::str_get_html($html);
-      $elems = $dom->find('.dwdswb-artikel');
-      if(sizeof($elems)) {
-        $word = $elems[0]->find('h1.dwdswb-ft-lemmaansatz');
-        $word = $word[0] ? $word[0]->innertext() : null;
-
-        $definition['definition']['word'] = $word;
-        $defintion_info_block = $elems[0]->find('.dwdswb-ft-block');
-
-
-        $definition['definition_found'] = false;
-        $definition['information_found'] = false;
-        foreach($defintion_info_block as $key=> $value) {
-          $label = $value->find('.dwdswb-ft-blocklabel');
-          $label_text = $label[0] ? $label[0]->innertext() : null;
-          $text = $value->find('.dwdswb-ft-blocktext');
-          $text_value = $text[0] ? $text[0]->innertext() : null;
-
-          if($text_value && $label_text) {
-            $definition['information_found'] = true;
-            $info_label = AnkiEDConjugator::getSlug($language, trim($label_text))."_info";
-            $info = array();
-            $info['label'] = $label_text;
-            $info['value'] = $text_value;
-            if($info_label == 'aussprache__info') {
-              $audio = $dom->find('[type="audio/mpeg"]');
-              $audio = sizeof($audio) ? $audio[0] : null;
-              if($audio) {
-                $mp3 = $audio->getAttribute('src');
-                $mp3 = preg_replace('/\/\//', 'https://', $mp3);
-                $info['value'] = $mp3;
-                $definition['definition']['has_mp3'] = true;
-                $definition['definition']['info']['mp3'] = $info;
-              }
-            } else if($info_label == 'grammatik__info') {
-              $definition['definition']['info']['grammatical_info'] = $info;
-              $type_info = array_map('trim',explode('·',trim(strip_tags($text_value))));
-              if(sizeof($type_info)) {
-                $type_info = $type_info[0];
-                if(strpos($type_info, 'Substantiv') == 0) {
-                  $genders = array(
-                    'Maskulinum' => 'm',
-                    'Femininum' => 'f',
-                    'Neutrum' => 'n'
-                  );
-                  foreach($genders as $key => $value) {
-                    if(strpos($type_info, $key)) {
-                      $definition['has_gender'] = true;
-                      $definition['gender'] = $value;
+      if($dom) {
+        $elems = $dom->find('.dwdswb-artikel');
+        if(sizeof($elems)) {
+          $word = $elems[0]->find('h1.dwdswb-ft-lemmaansatz');
+          $word = $word[0] ? $word[0]->innertext() : null;
+  
+          $definition['definition']['word'] = $word;
+          $defintion_info_block = $elems[0]->find('.dwdswb-ft-block');
+  
+  
+          $definition['definition_found'] = false;
+          $definition['information_found'] = false;
+          foreach($defintion_info_block as $key=> $value) {
+            $label = $value->find('.dwdswb-ft-blocklabel');
+            $label_text = $label[0] ? $label[0]->innertext() : null;
+            $text = $value->find('.dwdswb-ft-blocktext');
+            $text_value = $text[0] ? $text[0]->innertext() : null;
+  
+            if($text_value && $label_text) {
+              $definition['information_found'] = true;
+              $info_label = AnkiEDConjugator::getSlug($language, trim($label_text))."_info";
+              $info = array();
+              $info['label'] = $label_text;
+              $info['value'] = $text_value;
+              if($info_label == 'aussprache__info') {
+                $audio = $dom->find('[type="audio/mpeg"]');
+                $audio = sizeof($audio) ? $audio[0] : null;
+                if($audio) {
+                  $mp3 = $audio->getAttribute('src');
+                  $mp3 = preg_replace('/\/\//', 'https://', $mp3);
+                  $info['value'] = $mp3;
+                  $definition['definition']['has_mp3'] = true;
+                  $definition['definition']['info']['mp3'] = $info;
+                }
+              } else if($info_label == 'grammatik__info') {
+                $definition['definition']['info']['grammatical_info'] = $info;
+                $type_info = array_map('trim',explode('·',trim(strip_tags($text_value))));
+                if(sizeof($type_info)) {
+                  $type_info = $type_info[0];
+                  if(strpos($type_info, 'Substantiv') == 0) {
+                    $genders = array(
+                      'Maskulinum' => 'm',
+                      'Femininum' => 'f',
+                      'Neutrum' => 'n'
+                    );
+                    foreach($genders as $key => $value) {
+                      if(strpos($type_info, $key)) {
+                        $definition['has_gender'] = true;
+                        $definition['gender'] = $value;
+                      }
                     }
                   }
                 }
               }
-            }
-            else {
-              $definition['definition']['info'][$info_label] = $info;
+              else {
+                $definition['definition']['info'][$info_label] = $info;
+              }
             }
           }
-        }
-
-        $bedeutung_def_container = $dom->find('#d-1-1');
-        $bedeutung_def_container = $bedeutung_def_container[0] ? $bedeutung_def_container[0] : null;
-
-        if($bedeutung_def_container) {
-          $bedeutung_def = $bedeutung_def_container->find('.dwdswb-lesart-content .dwdswb-lesart-def .dwdswb-definitionen .dwdswb-definition');
-          $bedeutung_def = $bedeutung_def[0] ? $bedeutung_def[0]->innertext() : null;
-          if($bedeutung_def) {
-            $definition['definition']['value'][0] = $bedeutung_def;
-            $definition['definition_found'] = true;
+  
+          $bedeutung_def_container = $dom->find('#d-1-1');
+          $bedeutung_def_container = $bedeutung_def_container[0] ? $bedeutung_def_container[0] : null;
+  
+          if($bedeutung_def_container) {
+            $bedeutung_def = $bedeutung_def_container->find('.dwdswb-lesart-content .dwdswb-lesart-def .dwdswb-definitionen .dwdswb-definition');
+            $bedeutung_def = $bedeutung_def[0] ? $bedeutung_def[0]->innertext() : null;
+            if($bedeutung_def) {
+              $definition['definition']['value'][0] = $bedeutung_def;
+              $definition['definition_found'] = true;
+            }
           }
+          $definition['not_found'] = false;
         }
-        $definition['not_found'] = false;
+        else {
+          krumo('ACHTUNG!: '.$word. ' -- no definition found!');
+        }
       }
       else {
         krumo('ACHTUNG!: '.$word. ' -- no definition found!');

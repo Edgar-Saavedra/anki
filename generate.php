@@ -47,23 +47,38 @@ function getBabFrenchConjData() {
 /**
  * Get GERMAN definitions
  */
-function getDwdsGermanDefintionPromises($verbe_data) {
+function getDwdsGermanDefintionPromises($word_data, $existing_data, $max = 10) {
   $pomises = [];
   $client = new GuzzleHttp\Client(['timeout' => 20]);
-  foreach($verbe_data as $key => $value) {
-    $word = $value['word']['value'];
-    $translation = $value['translation']['value'];
-    if($word && $translation)
-      $pomise = AnkiEDConjugator::germanDefinitionDwds($client, $word, $translation);
-      if($key % 10 == 0) {
-        $pomise->wait();
+
+  $counter = 0;
+  foreach($word_data as $key => $value) {
+    if($counter < $max) {
+      $word = $value['word']['value'];
+      $translation = $value['translation']['value'];
+
+      if($word && $translation) {
+        $slug = AnkiEDConjugator::geramnSlugString($word);
+        if(!$existing_data[$slug]) {
+          $pomise = AnkiEDConjugator::germanDefinitionDwds($client, $word, $translation);
+          if($key % 10 == 0) {
+            $pomise->wait();
+          }
+          $counter++;
+          $pomises[$slug] = $pomise;
+        }
       }
-      $pomises[AnkiEDConjugator::geramnSlugString($word)] = $pomise;
+    }
   }
-  all($pomises)->then(function($data) {
+  all($pomises)->then(function($data) use ($existing_data) {
     krumo('all done! writting the german defintions to file!');
     $fp = fopen('german-definitions-dwds.json', 'w');
-    fwrite($fp, json_encode($data));
+    $existing = $existing_data;
+    if(!is_array($existing)) {
+      $existing = array();
+    }
+    $json_data = json_encode(array_merge($data, $existing));
+    fwrite($fp, $json_data);
     fclose($fp);
     // print "<script> var conjugationGermanData=".dataToJson($data).";</script>";
     return $data;
@@ -181,9 +196,26 @@ function getLaRousseFrenchDefData($verbe_data, $existing_data) {
   })->wait();
 }
 
+
+//  french def and conj data
+$data = array(
+  'word_data' => dataArrayFromSheet(realpath('./german-vocab.xlsx'),0),
+  'existing_data' => array()
+);
+
+for($i = 0;$i < 90; $i++ ) {
+  $string = file_get_contents(realpath('./german-definitions-dwds.json'));
+  $data['existing_data'] = json_decode($string, true);
+  $data['existing_data'] = $data['existing_data'] ? $data['existing_data'] : array();
+  getDwdsGermanDefintionPromises($data['word_data'], $data['existing_data']);
+}
+
 //  german def and conj data
 // $promise_german = new Promise();
 // $promise_german->resolve(dataArrayFromSheet(realpath('./verbes.xlsx')));
+// $promise_german->then(function($word_data) {
+//   getDwdsGermanDefintionPromises($word_data);
+// });
 // $promise_german->then(function($verbe_data) {
 //   getVerbixGermanConjPromises($verbe_data);
 // })->then(function() {
@@ -196,28 +228,28 @@ function getLaRousseFrenchDefData($verbe_data, $existing_data) {
 //  END: german def and conj data
 
 
-$string = file_get_contents(realpath('./french-conjugations-larousse.json'));
-$json_a = json_decode($string, true);
+// $string = file_get_contents(realpath('./french-conjugations-larousse.json'));
+// $json_a = json_decode($string, true);
 
-//  french def and conj data
-$promise_french = new Promise();
-$promise_french->resolve(array(
-  'verbe_data' => dataArrayFromSheet(realpath('./verbes.xlsx'),1),
-  'existing_data' => $json_a
-));
-$promise_french->then(function($data) {
-  getLarousseFrenchConjPromises($data['verbe_data'], $data['existing_data']);
-})->then(function() {
-  $string = file_get_contents(realpath('./german-french-larousse.json'));
-  $json_a = json_decode($string, true);
-  $promise_french_words = new Promise();
-  $promise_french_words->resolve(array(
-    'word_data' => dataArrayFromSheet(realpath('./verbes.xlsx'),3),
-    'existing_data' => $json_a
-  ));
-  $promise_french_words->then(function($data) {
-    getLaRousseFrenchDefData($data['word_data'], $data['existing_data']);
-  });
-});
+// //  french def and conj data
+// $promise_french = new Promise();
+// $promise_french->resolve(array(
+//   'verbe_data' => dataArrayFromSheet(realpath('./verbes.xlsx'),1),
+//   'existing_data' => $json_a
+// ));
+// $promise_french->then(function($data) {
+//   getLarousseFrenchConjPromises($data['verbe_data'], $data['existing_data']);
+// })->then(function() {
+//   $string = file_get_contents(realpath('./german-french-larousse.json'));
+//   $json_a = json_decode($string, true);
+//   $promise_french_words = new Promise();
+//   $promise_french_words->resolve(array(
+//     'word_data' => dataArrayFromSheet(realpath('./verbes.xlsx'),3),
+//     'existing_data' => $json_a
+//   ));
+//   $promise_french_words->then(function($data) {
+//     getLaRousseFrenchDefData($data['word_data'], $data['existing_data']);
+//   });
+// });
 //  end: french def and conj data
 ?>
