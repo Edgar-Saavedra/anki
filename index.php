@@ -8,5 +8,6 @@
 <body>
   <div id="app"></div>
   <script src="/dist/anki.js"></script>
+  <!-- new comment -->
 </body>
 </html>
